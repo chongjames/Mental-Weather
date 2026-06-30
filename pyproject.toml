@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mental-weather"
+version = "0.1.0"
+description = "A Mental Weather Report from your Claude chat history — observations, not diagnoses."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "James" }]
+keywords = ["claude", "journaling", "reflection", "nlp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = []
+
+[project.optional-dependencies]
+narrative = ["anthropic>=0.40"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+mental-weather = "mental_weather.cli:main"
+
+[tool.setuptools]
+packages = ["mental_weather"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
