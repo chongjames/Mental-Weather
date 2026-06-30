@@ -39,6 +39,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="How many weeks to show in the trend table (default: 12).",
     )
     p.add_argument(
+        "--tz", default=None,
+        help="Timezone for hour-of-day, late-night, and per-day/week signals. "
+             "Accepts a fixed offset ('+08:00', 'UTC+8') or an IANA name "
+             "('Australia/Perth'). Defaults to UTC.",
+    )
+    p.add_argument(
         "--no-narrative", action="store_true",
         help="Skip the Claude API narrative even if a key is available.",
     )
@@ -75,6 +81,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    if args.tz:
+        try:
+            export = parse.with_timezone(export, parse.resolve_tz(args.tz))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
     split = windows.split(
         export, recent_days=args.recent_days, baseline_days=args.baseline_days
     )
@@ -110,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     md = report.build(
         export, split, narrative=narr, weeks=args.weeks,
         generated_at=datetime.now(timezone.utc),
+        tz_label=args.tz or "UTC",
     )
 
     if args.output:
