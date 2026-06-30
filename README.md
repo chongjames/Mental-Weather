@@ -48,6 +48,9 @@ mental-weather conversations.json --no-narrative
 # Full report (metrics + Claude narrative) written to a file
 export ANTHROPIC_API_KEY=sk-ant-...
 mental-weather conversations.json -o weather.md
+
+# Preview the FULL report (with a weather section) offline — no key, no network
+mental-weather conversations.json --fake-narrative
 ```
 
 Useful flags:
@@ -58,11 +61,31 @@ Useful flags:
 | `--baseline-days` | `90` | Length of the "baseline" window before it |
 | `--weeks` | `12` | Weeks shown in the trend table |
 | `--no-narrative` | off | Skip the API call, metrics only |
+| `--fake-narrative` | off | Fill the weather section with a deterministic offline stub |
 | `--model` | `claude-opus-4-8` | Model for the narrative |
 | `-o, --output` | stdout | Write markdown to a file |
 
 If no API key (or the `anthropic` SDK) is present, it silently produces a
 metrics-only report.
+
+### Trying the narrative without an API key
+
+The narrative step is the only part that calls the Claude API. To see and test
+what a complete report *with* a weather section looks like — without a key, the
+SDK, or any network — use the offline stub:
+
+```bash
+mental-weather tests/fixtures/sample_export.json --fake-narrative
+# or, equivalently, drive it from the environment:
+MENTAL_WEATHER_FAKE_NARRATIVE=1 mental-weather tests/fixtures/sample_export.json
+```
+
+The stub is **not a model** — it runs the full narrative path (payload
+assembly, snippet sampling, report integration) and writes a short,
+deterministic read of the largest signal moves, clearly labeled
+`[stub narrative — no API call]`. It exists purely so the narrative path can be
+previewed and tested. When you do have a key, drop the flag to get the real
+Claude-written narrative.
 
 ## What it measures
 

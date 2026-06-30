@@ -43,6 +43,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip the Claude API narrative even if a key is available.",
     )
     p.add_argument(
+        "--fake-narrative", action="store_true",
+        help="Use a deterministic offline stub for the narrative instead of "
+             "calling the API (preview/test the full report with no key).",
+    )
+    p.add_argument(
         "--model", default=narrative.DEFAULT_MODEL,
         help=f"Model for the narrative (default: {narrative.DEFAULT_MODEL}).",
     )
@@ -76,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
 
     narr: str | None = None
     if not args.no_narrative:
-        if narrative.is_available():
+        if narrative.is_available(fake=args.fake_narrative):
             ni = narrative.NarrativeInput(
                 baseline=split.baseline,
                 recent=split.recent,
@@ -87,7 +92,9 @@ def main(argv: list[str] | None = None) -> int:
                 samples=narrative.sample_snippets(split.recent_msgs),
             )
             try:
-                narr = narrative.generate(ni, model=args.model)
+                narr = narrative.generate(
+                    ni, model=args.model, fake=args.fake_narrative
+                )
             except Exception as exc:  # noqa: BLE001 - never let the narrative sink the report
                 print(f"warning: narrative step failed ({exc}); "
                       "continuing with metrics only.", file=sys.stderr)
@@ -95,8 +102,8 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 "note: no ANTHROPIC_API_KEY / anthropic SDK found — "
                 "generating metrics-only report. Install with "
-                "`pip install 'mental-weather[narrative]'` and set the key "
-                "for the narrative.",
+                "`pip install 'mental-weather[narrative]'` and set the key, "
+                "or pass --fake-narrative to preview the full report offline.",
                 file=sys.stderr,
             )
 

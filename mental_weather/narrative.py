@@ -28,6 +28,12 @@ from .parse import Message
 
 DEFAULT_MODEL = "claude-opus-4-8"
 
+# Setting this env var (or passing ``fake=True`` / the ``--fake-narrative`` CLI
+# flag) swaps the live API call for a deterministic, offline stub. It exists so
+# the *entire* narrative path -- payload assembly, snippet sampling, report
+# integration -- can be previewed and tested without a key or network.
+FAKE_ENV = "MENTAL_WEATHER_FAKE_NARRATIVE"
+
 SYSTEM_PROMPT = """\
 You are writing a "Mental Weather Report": a brief, plain-language read on
 shifts in how one person (the user) has been writing to Claude over time. You
@@ -118,8 +124,18 @@ def sample_snippets(messages: list[Message], limit: int = 12, max_chars: int = 2
     return out
 
 
-def is_available() -> bool:
-    """True if we can plausibly call the API (key present and SDK importable)."""
+def _fake_enabled(fake: bool = False) -> bool:
+    return fake or bool(os.environ.get(FAKE_ENV))
+
+
+def is_available(fake: bool = False) -> bool:
+    """True if we can produce a narrative.
+
+    The fake/offline stub is always "available". Otherwise we need both an API
+    key and an importable ``anthropic`` SDK.
+    """
+    if _fake_enabled(fake):
+        return True
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return False
     try:
@@ -129,8 +145,76 @@ def is_available() -> bool:
     return True
 
 
-def generate(ni: NarrativeInput, model: str = DEFAULT_MODEL, max_tokens: int = 700) -> str:
-    """Call Claude to produce the narrative. Raises if unavailable."""
+# Friendly names for signals, used by the offline stub.
+_FRIENDLY = {
+    "msgs_per_active_day": "message pace",
+    "mean_words": "message length",
+    "median_words": "message length",
+    "late_night_ratio": "late-night posting",
+    "sleep_mentions_per_100": "sleep/tiredness mentions",
+    "self_ref_rate": "self-reference",
+    "valence": "tone",
+    "grandiosity_per_100": "grandiose phrasing",
+    "vocab_diversity": "vocabulary range",
+}
+
+
+def _fake_narrative(ni: NarrativeInput) -> str:
+    """Deterministic, offline stand-in for the API narrative.
+
+    This is NOT a model. It restates the largest signal moves in plain words so
+    a report *with* a weather section can be previewed and tested with no key
+    and no network. It is clearly labeled as a stub so it is never mistaken for
+    a real read.
+    """
+    def _mag(d: Delta) -> float:
+        return abs(d.pct_change) if d.pct_change is not None else abs(d.change) * 100
+
+    moved = sorted(
+        (d for d in ni.deltas if _mag(d) > 1e-9), key=_mag, reverse=True
+    )
+    notable = moved[:4]
+
+    if notable:
+        top = notable[0]
+        label = _FRIENDLY.get(top.field, top.field)
+        arrow = "rising" if top.change > 0 else "easing" if top.change < 0 else "steady"
+        headline = f"**[stub narrative — no API call]** {label.capitalize()} {arrow}; a few signals shifted."
+    else:
+        headline = "**[stub narrative — no API call]** Steady skies — nothing much moved this period."
+
+    bullets = []
+    for d in notable:
+        lbl = _FRIENDLY.get(d.field, d.field)
+        direction = "up" if d.change > 0 else "down"
+        if d.pct_change is not None:
+            bullets.append(f"- {lbl.capitalize()} {direction} ({d.baseline:g} → {d.recent:g}, {d.pct_change:+g}%).")
+        else:
+            bullets.append(f"- {lbl.capitalize()} {direction} ({d.baseline:g} → {d.recent:g}).")
+    if not bullets:
+        bullets.append("- All tracked signals held close to baseline.")
+    if ni.emerging_keywords:
+        kws = ", ".join(f"`{k}`" for k in ni.emerging_keywords[:5])
+        bullets.append(f"- New topics surfaced: {kws}.")
+
+    closing = (
+        "_Stub preview — deterministic, not a model read. Set "
+        "`ANTHROPIC_API_KEY` and install the `narrative` extra for the real one._"
+    )
+    return "\n".join([headline, "", *bullets, "", closing])
+
+
+def generate(
+    ni: NarrativeInput,
+    model: str = DEFAULT_MODEL,
+    max_tokens: int = 700,
+    fake: bool = False,
+) -> str:
+    """Produce the narrative. Returns the offline stub when fake mode is on,
+    otherwise calls Claude. Raises if a live call is needed but unavailable."""
+    if _fake_enabled(fake):
+        return _fake_narrative(ni)
+
     import anthropic  # imported lazily so the metrics path needs no dependency
 
     client = anthropic.Anthropic()
