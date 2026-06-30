@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# Your private data — never commit an export or a generated report.
+conversations.json
+projects.json
+users.json
+*export*.json
+!tests/fixtures/sample_export.json
+weather.md
+*.weather.md
