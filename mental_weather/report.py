@@ -61,6 +61,7 @@ def build(
     narrative: str | None = None,
     weeks: int = 12,
     generated_at: datetime | None = None,
+    tz_label: str | None = None,
 ) -> str:
     ds = deltas(split.baseline, split.recent)
     emerging = emerging_keywords(split.baseline, split.recent)
@@ -74,6 +75,9 @@ def build(
         f"{len(export.human_messages())} of your messages"
         + (f", {start.date()} → {end.date()}" if start and end else "")
         + "*"
+    )
+    lines.append(
+        f"*Time-of-day signals (late-night, hours) computed in **{tz_label or 'UTC'}**.*"
     )
     lines.append("")
 

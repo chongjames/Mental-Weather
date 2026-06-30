@@ -60,6 +60,7 @@ Useful flags:
 | `--recent-days` | `14` | Length of the "recent" window |
 | `--baseline-days` | `90` | Length of the "baseline" window before it |
 | `--weeks` | `12` | Weeks shown in the trend table |
+| `--tz` | `UTC` | Timezone for hour-of-day / late-night / per-day signals (e.g. `+08:00` or `Australia/Perth`) |
 | `--no-narrative` | off | Skip the API call, metrics only |
 | `--fake-narrative` | off | Fill the weather section with a deterministic offline stub |
 | `--model` | `claude-opus-4-8` | Model for the narrative |
@@ -95,7 +96,9 @@ measurements of a person:
 
 - **Pace** — messages per active day, message length (mean/median words).
 - **Posting hours** — full hour histogram and a `late_night_ratio`
-  (share posted 00:00–05:59 UTC).
+  (share posted 00:00–05:59). Computed in UTC by default; pass `--tz` (e.g.
+  `--tz Australia/Perth` or `--tz +08:00`) to bin by your **local** time —
+  otherwise "late night" means late night in UTC, not where you live.
 - **Sleep signals** — mentions of sleep/tiredness/being up late.
 - **Self-reference** — first-person token rate (`I`, `me`, `my`).
 - **Valence** — a *crude* positive-minus-negative word balance (−1…1).

@@ -21,8 +21,9 @@ drifted across versions:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -111,6 +112,58 @@ def parse_timestamp(raw: Any) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+_OFFSET_RE = re.compile(r"(?:utc|gmt)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$")
+
+
+def resolve_tz(value: str) -> tzinfo:
+    """Resolve a ``--tz`` value to a :class:`datetime.tzinfo`.
+
+    Accepts either a fixed UTC offset (``"+08:00"``, ``"UTC+8"``, ``"-0500"``)
+    or an IANA zone name (``"Australia/Perth"``). Fixed offsets work everywhere
+    with no extra packages; IANA names use the stdlib ``zoneinfo`` database,
+    which on Windows requires the ``tzdata`` package.
+    """
+    s = (value or "").strip()
+    if not s:
+        return timezone.utc
+    low = s.lower()
+    if low in ("utc", "gmt", "z"):
+        return timezone.utc
+
+    m = _OFFSET_RE.fullmatch(low)
+    if m:
+        sign = 1 if m.group(1) == "+" else -1
+        hours = int(m.group(2))
+        minutes = int(m.group(3) or 0)
+        if hours > 14 or minutes >= 60:
+            raise ValueError(f"invalid UTC offset: {value!r}")
+        return timezone(sign * timedelta(hours=hours, minutes=minutes))
+
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(s)
+    except Exception as exc:  # ZoneInfoNotFoundError, or no tzdata on Windows
+        raise ValueError(
+            f"unknown timezone {value!r}. Use an IANA name like "
+            f"'Australia/Perth' (on Windows you may need `pip install tzdata`), "
+            f"or a fixed offset like '+08:00'."
+        ) from exc
+
+
+def with_timezone(export: "Export", tz: tzinfo) -> "Export":
+    """Convert every message timestamp into ``tz`` (in place) and return it.
+
+    Timestamps are stored as absolute instants (UTC), so windowing by instant
+    is unaffected; this shift only changes the *wall-clock* hour and date used
+    by the hour-of-day, late-night, active-day, and weekly-bucket signals.
+    """
+    for m in export.messages:
+        if m.created_at is not None:
+            m.created_at = m.created_at.astimezone(tz)
+    return export
 
 
 def _extract_text(msg: dict[str, Any]) -> str:
